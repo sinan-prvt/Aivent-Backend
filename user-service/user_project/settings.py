@@ -10,14 +10,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-please-change")
 
 DEBUG = os.getenv("DEBUG", "True").lower() in ("1", "true")
 
-
-raw_hosts = os.getenv("ALLOWED_HOSTS", "") 
-
-if raw_hosts == "*": 
-    ALLOWED_HOSTS = ["*"] 
-else: 
-    ALLOWED_HOSTS = [h.strip() for h in raw_hosts.split(",") if h.strip()]
-
+ALLOWED_HOSTS = ["*", "localhost", "127.0.0.1", "user_service"]
 
 PUBLIC_KEY_PATH = "/app/keys/public.pem"
 
@@ -49,7 +42,6 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
 
-    'user_app.apps.UserAppConfig',
     "corsheaders",
     "user_app",
 ]
@@ -120,6 +112,7 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [ 
         "user_app.remote_auth.RemoteJWTAuthentication", 
         "rest_framework.authentication.SessionAuthentication", 
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
     ] 
 }
 

@@ -48,4 +48,3 @@ class UserProfile(models.Model):
         return f"Profile for user {self.user_id}"
 
 
-

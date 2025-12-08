@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from rest_framework import status, permissions, serializers
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from ..serializers import (
@@ -6,16 +7,16 @@ from ..serializers import (
     RegisterSerializer,
     LogoutSerializer,
     ChangePasswordSerializer,
+    CustomTokenObtainPairSerializer,
 )
 from drf_yasg.utils import swagger_auto_schema
 from auth_app.core.captcha_utils import (
     requires_captcha,
     increment_failed_attempts,
-    reset_failed_attempts
+    reset_failed_attempts,
 )
 from auth_app.core.recaptcha import verify_recaptcha
 from rest_framework.response import Response
-from rest_framework import status
 from django.conf import settings
 from rest_framework.views import APIView
 from auth_app.tasks import send_email_task
@@ -53,6 +54,10 @@ class MeView(APIView):
         return Response(payload, status=200)
 
 
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
+
 class CustomLoginView(TokenObtainPairView):
     permission_classes = [AllowAny]
     serializer_class = CustomLoginSerializer
@@ -67,6 +72,7 @@ class CustomLoginView(TokenObtainPairView):
         ip = request.META.get("REMOTE_ADDR")
         key = f"{email}:{ip}" if email else ip
 
+        # If captcha is required, validate recaptcha token first
         if requires_captcha(key):
             token = request.data.get("recaptcha_token")
             if not token:
@@ -78,7 +84,6 @@ class CustomLoginView(TokenObtainPairView):
 
             resp = verify_recaptcha(token, remoteip=ip)
             score = resp.get("score") or 0
-
             if not resp.get("success") or score < float(settings.RECAPTCHA_MIN_SCORE):
                 increment_failed_attempts(key)
                 return Response({
@@ -88,47 +93,44 @@ class CustomLoginView(TokenObtainPairView):
                 }, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = self.get_serializer(data=request.data)
-
         try:
             serializer.is_valid(raise_exception=True)
-        except Exception:
-            increment_failed_attempts(key)
+        except serializers.ValidationError as e:
+            # increment failed attempts so captcha is triggered next time
+            try:
+                increment_failed_attempts(key)
+            except Exception:
+                pass
+            return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
 
-            if requires_captcha(key):
-                return Response({
-                    "success": False,
-                    "message": "Invalid credentials, reCAPTCHA is now required",
-                    "errors": {"auth": ["invalid"], "captcha_required": True}
-                }, status=status.HTTP_401_UNAUTHORIZED)
-
-            return Response({
-                "success": False,
-                "message": "Invalid credentials",
-                "errors": {"auth": ["invalid credentials"]}
-            }, status=status.HTTP_401_UNAUTHORIZED)
-
+        # At this point serializer validated and put validated user on serializer if using CustomLoginSerializer
         user = getattr(serializer, "_validated_user", None)
         reset_failed_attempts(key)
 
-        if user: 
-            sync_user_to_user_service_task.delay({ 
-                "id": str(user.id), 
-                "email": user.email, 
-                "username": user.username, 
-                "full_name": user.full_name, 
-                "phone": user.phone, 
-                "role": user.role, 
-                "email_verified": user.email_verified, 
-                "vendor_approved": user.vendor_approved, 
-                "is_active": user.is_active, 
-            })
+        # async sync user to user-service (non-blocking)
+        if user:
+            try:
+                sync_user_to_user_service_task.delay({
+                    "id": str(user.id),
+                    "email": user.email,
+                    "username": user.username,
+                    "full_name": user.full_name,
+                    "phone": user.phone,
+                    "role": user.role,
+                    "email_verified": user.email_verified,
+                    "vendor_approved": user.vendor_approved,
+                    "is_active": user.is_active,
+                })
+            except Exception:
+                logger.exception("Failed to dispatch sync task")
 
-        tokens = super().post(request, *args, **kwargs)
+        tokens_resp = super().post(request, *args, **kwargs)
         return Response({
             "success": True,
             "message": "Logged in",
-            "data": tokens.data
-        }, status=200)
+            "data": tokens_resp.data
+        }, status=tokens_resp.status_code)
+
 
 
 class RegisterView(APIView):

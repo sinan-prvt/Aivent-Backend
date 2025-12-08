@@ -11,8 +11,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
     username = serializers.CharField(required=False)
     phone = serializers.CharField(required=False)
 
-    full_name = serializers.CharField(required=False)
-
     email = serializers.ReadOnlyField(source="user.email")
     user_created_at = serializers.ReadOnlyField(source="user.date_joined")
     avatar_url = serializers.SerializerMethodField()
@@ -23,7 +21,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "username",
             "email",
             "phone",
-            "full_name",
             "gender",
             "dob",
             "country",
@@ -79,7 +76,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token["email"] = user.email 
         token["username"] = user.username 
         token["role"] = user.role 
-        token["full_name"] = user.full_name 
         token["phone"] = user.phone 
         token["vendor_approved"] = user.vendor_approved
 

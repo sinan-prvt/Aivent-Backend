@@ -57,7 +57,8 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./auth-service/private.pem:/app/private.pem
+      - ./auth-service/keys/private.pem:/app/keys/private.pem
+      - ./auth-service/keys/public.pem:/app/keys/public.pem
     networks:
       - aivent-net
     command: >

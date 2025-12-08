@@ -13,6 +13,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import CustomTokenObtainPairSerializer 
 from django.conf import settings 
 import requests 
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 
 User = get_user_model()
@@ -41,10 +42,13 @@ def fetch_identity(auth_header):
 
 
 
+
 class UserProfileView(generics.RetrieveUpdateAPIView):
     serializer_class = UserProfileSerializer
+    authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
+
 
     def get_object(self):
         profile, _ = UserProfile.objects.get_or_create(user=self.request.user)
