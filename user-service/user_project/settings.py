@@ -10,7 +10,32 @@ SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-please-change")
 
 DEBUG = os.getenv("DEBUG", "True").lower() in ("1", "true")
 
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "*").split(",")
+
+raw_hosts = os.getenv("ALLOWED_HOSTS", "") 
+
+if raw_hosts == "*": 
+    ALLOWED_HOSTS = ["*"] 
+else: 
+    ALLOWED_HOSTS = [h.strip() for h in raw_hosts.split(",") if h.strip()]
+
+
+PUBLIC_KEY_PATH = "/app/keys/public.pem"
+
+
+if os.path.exists(PUBLIC_KEY_PATH): 
+    with open(PUBLIC_KEY_PATH, "r") as f: 
+        JWT_PUBLIC_KEY = f.read() 
+else: JWT_PUBLIC_KEY = None 
+
+
+AUTH_PUBLIC_KEY = JWT_PUBLIC_KEY 
+
+
+AUTH_USER_MODEL = "user_app.User"
+
+
+
+
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -24,6 +49,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
 
+    'user_app.apps.UserAppConfig',
     "corsheaders",
     "user_app",
 ]
@@ -89,21 +115,21 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": [
-        "user_app.remote_auth.RemoteJWTAuthentication",
-    ]
+
+REST_FRAMEWORK = { 
+    "DEFAULT_AUTHENTICATION_CLASSES": [ 
+        "user_app.remote_auth.RemoteJWTAuthentication", 
+        "rest_framework.authentication.SessionAuthentication", 
+    ] 
 }
 
-raw_key = os.environ.get("AUTH_PUBLIC_KEY", "")
-AUTH_PUBLIC_KEY = raw_key.replace("\\n", "\n")
 
-SIMPLE_JWT = {
-    "ALGORITHM": "RS256",
-    "VERIFYING_KEY": AUTH_PUBLIC_KEY,
-    "SIGNING_KEY": None,
-    "AUTH_HEADER_TYPES": ("Bearer",),
+SIMPLE_JWT = { 
+    "ALGORITHM": "RS256", 
+    "VERIFYING_KEY": JWT_PUBLIC_KEY, 
+    "AUTH_HEADER_TYPES": ("Bearer",), 
 }
+
 
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND")
 EMAIL_HOST = os.getenv("EMAIL_HOST")

@@ -2,7 +2,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth import get_user_model
-
+from rest_framework.response import Response 
+from user_app.models import UserProfile
 from .internal_permissions import InternalServicePermission
 
 User = get_user_model()
@@ -13,33 +14,48 @@ class InternalUserCreateView(APIView):
 
     def post(self, request):
         data = request.data
-
+        remote_id = str(data.get("id")) 
         email = data.get("email")
-        user = User.objects.filter(email=email).first()
-        if not user:
-            user = User.objects.create_user(
-                email=email,
-                username=email.split("@")[0],
-                role=data.get("role", "vendor"),
-                email_verified=data.get("email_verified", True),
-                is_active=data.get("is_active", False),
-                vendor_approved=data.get("vendor_approved", False),
+
+        if not remote_id: 
+            return Response({"detail": "Missing id"}, status=400)
+
+        user = User.objects.filter(remote_id=remote_id).first()
+
+        if not user and email: 
+            user = User.objects.filter(email=email).first()
+
+        if not user: 
+            raw_username = data.get("username") 
+            if raw_username: 
+                username = raw_username 
+            elif email: 
+                username = email.split("@")[0] 
+            else: username = f"user_{remote_id}"
+            
+            final_email = email if email else f"user_{remote_id}@noemail.local" 
+            
+            user = User.objects.create( 
+                remote_id=remote_id, 
+                email=final_email, 
+                username=username, 
+                is_active=True, 
             )
-        user = User.objects.filter(email=email).first()
-        if user:
-            return Response({"id": str(user.id)}, status=status.HTTP_200_OK)
 
-        user = User.objects.create(
-            email=email,
-            username=email.split("@")[0],
-            role=data.get("role", "vendor"),
-            email_verified=data.get("email_verified", True),
-            is_active=data.get("is_active", False),
-            vendor_approved=data.get("vendor_approved", False),
-        )
+        changed = False 
+        for field in ( 
+            "username", "email", "full_name", "phone", "role", 
+            "email_verified", "vendor_approved", "is_active" ): 
+            
+            if field in data and getattr(user, field) != data[field]: 
+                setattr(user, field, data[field]) 
+                    
+                changed = True
 
-        return Response({"id": str(user.id)}, status=status.HTTP_201_CREATED)
-
+        if changed: 
+            user.save()
+            
+        return Response({"id": user.id}, status=200)
 
 
 class InternalApproveVendorView(APIView):

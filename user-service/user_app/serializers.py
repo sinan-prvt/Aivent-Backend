@@ -1,31 +1,61 @@
-from rest_framework import serializers
+from rest_framework import serializers 
+from django.contrib.auth import get_user_model 
+from user_app.models import UserProfile 
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from user_app.models import UserProfile
 
-
+User = get_user_model()
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
-    username = serializers.CharField(source="user.username", read_only=True)
-    avatar = serializers.ImageField(required=False, write_only=True)
-    avatar_url = serializers.SerializerMethodField(read_only=True)
+    username = serializers.CharField(required=False)
+    phone = serializers.CharField(required=False)
+
+    full_name = serializers.CharField(required=False)
+
+    email = serializers.ReadOnlyField(source="user.email")
+    user_created_at = serializers.ReadOnlyField(source="user.date_joined")
+    avatar_url = serializers.SerializerMethodField()
 
     class Meta:
         model = UserProfile
         fields = [
             "username",
-            "full_name",
+            "email",
             "phone",
+            "full_name",
             "gender",
             "dob",
-            "avatar",
-            "avatar_url",
             "country",
             "state",
             "city",
             "pincode",
             "full_address",
+            "avatar",
+            "avatar_url",
+            "user_created_at",
+            "created_at",
+            "updated_at",
         ]
+        read_only_fields = ["created_at", "updated_at"]
+
+
+    def update(self, instance, validated_data): 
+        """ 
+        instance = UserProfile 
+        instance.user = User 
+        """ 
+        user = instance.user 
+        
+        if "username" in validated_data: 
+            user.username = validated_data.pop("username") 
+            
+        if "phone" in validated_data: 
+            user.phone = validated_data["phone"] 
+            
+        user.save() 
+        
+        return super().update(instance, validated_data)
 
     def get_avatar_url(self, obj):
         request = self.context.get("request", None)
@@ -40,17 +70,17 @@ class UserProfileSerializer(serializers.ModelSerializer):
         return data
 
 
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer): 
+    @classmethod 
+    def get_token(cls, user): 
+        token = super().get_token(user)
 
-# class EnableMfaSerializer(serializers.Serializer):
-#     pass
+        token["id"] = str(user.id) 
+        token["email"] = user.email 
+        token["username"] = user.username 
+        token["role"] = user.role 
+        token["full_name"] = user.full_name 
+        token["phone"] = user.phone 
+        token["vendor_approved"] = user.vendor_approved
 
-
-# class ConfirmEnableMfaSerializer(serializers.Serializer):
-#     secret = serializers.CharField()
-#     code = serializers.CharField()
-
-
-# class VerifyMFASerializer(serializers.Serializer):
-#     session_id = serializers.UUIDField()
-#     code = serializers.CharField()
-
+        return token
