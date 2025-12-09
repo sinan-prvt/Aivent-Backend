@@ -172,9 +172,6 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = "UTC"
 
 
-USER_SERVICE_URL = os.getenv("USER_SERVICE_URL")
-USER_SERVICE_INTERNAL_TOKEN = os.getenv("USER_SERVICE_INTERNAL_TOKEN")
-
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
 EMAIL_HOST = os.getenv("EMAIL_HOST")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
