@@ -4,18 +4,22 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from auth_app.models import User
 
 
+from rest_framework import serializers
+from user_app.models import UserProfile
+
 class UserProfileSerializer(serializers.ModelSerializer):
-    username = serializers.CharField(required=False)
-    phone = serializers.CharField(required=False)
+    username = serializers.CharField(source="user.username", read_only=True)
+    phone = serializers.CharField(source="user.phone", required=False, allow_null=True, allow_blank=True)
+    full_name = serializers.CharField(source="user.full_name", required=False, allow_blank=True)
 
     email = serializers.ReadOnlyField(source="user.email")
     user_created_at = serializers.ReadOnlyField(source="user.date_joined")
-    avatar_url = serializers.SerializerMethodField()
 
     class Meta:
         model = UserProfile
         fields = [
             "username",
+            "full_name",
             "email",
             "phone",
             "gender",
@@ -25,43 +29,31 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "city",
             "pincode",
             "full_address",
-            "avatar",
-            "avatar_url",
-            "user_created_at",
             "created_at",
             "updated_at",
+            "user_created_at",
         ]
         read_only_fields = ["created_at", "updated_at"]
 
 
-    def update(self, instance, validated_data): 
-        """ 
-        instance = UserProfile 
-        instance.user = User 
-        """ 
-        user = instance.user 
-        
-        if "username" in validated_data: 
-            user.username = validated_data.pop("username") 
-            
-        if "phone" in validated_data: 
-            user.phone = validated_data["phone"] 
-            
-        user.save() 
-        
+    def update(self, instance, validated_data):
+        """Update both UserProfile and User model"""
+        user_data = validated_data.pop("user", {})
+
+        user = instance.user
+        if "username" in user_data:
+            user.username = user_data["username"]
+
+        if "phone" in user_data:
+            user.phone = user_data["phone"]
+
+        if "full_name" in user_data:
+            user.full_name = user_data["full_name"]
+
+        user.save()
+
         return super().update(instance, validated_data)
 
-    def get_avatar_url(self, obj):
-        request = self.context.get("request", None)
-        if obj.avatar:
-            return request.build_absolute_uri(obj.avatar.url) if request else obj.avatar.url
-        default_path = "/media/avatars/default.png"
-        return request.build_absolute_uri(default_path) if request else default_path
-
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        data.pop("avatar", None)
-        return data
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer): 

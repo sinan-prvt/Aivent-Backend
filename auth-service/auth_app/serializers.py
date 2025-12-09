@@ -4,7 +4,7 @@ from auth_app.core.recaptcha import verify_recaptcha
 from auth_app.core.captcha_utils import increment_failed_attempts, reset_failed_attempts, requires_captcha 
 from django.conf import settings 
 from django.contrib.auth import get_user_model, authenticate
-
+from auth_app.utils import create_otp_for_user
 
 User = get_user_model()
 
@@ -139,3 +139,29 @@ class ChangePasswordSerializer(serializers.Serializer):
     new_password = serializers.CharField(required=True, min_length=8)
 
     
+class VendorRegisterSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    username = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+    phone = serializers.CharField(required=False)
+
+    def validate_email(self, email):
+        if User.objects.filter(email=email).exists():
+            raise serializers.ValidationError("Email already exists")
+        return email
+
+    def create(self, validated_data):
+        user = User.objects.create_user(
+            email=validated_data["email"],
+            password=validated_data["password"],
+            username=validated_data["username"],
+            phone=validated_data.get("phone"),
+            role="vendor",
+            is_active=False,
+            vendor_approved=False,
+            email_verified=False,
+        )
+
+        raw_otp, otp_obj = create_otp_for_user(user, purpose="vendor_register")
+
+        return user, raw_otp

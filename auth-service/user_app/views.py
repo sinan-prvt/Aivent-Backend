@@ -10,26 +10,32 @@ from user_app.models import UserProfile
 from rest_framework_simplejwt.views import TokenObtainPairView 
 from .serializers import CustomTokenObtainPairSerializer 
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.permissions import AllowAny, IsAuthenticated
 
 
 User = get_user_model()
 
 
 
+class ProfileView(APIView):
+    permission_classes = [IsAuthenticated]
 
-class UserProfileView(generics.RetrieveUpdateAPIView):
-    serializer_class = UserProfileSerializer
-    authentication_classes = [JWTAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser]
+    def get(self, request):
+        profile = request.user.profile
+        serializer = UserProfileSerializer(profile, context={"request": request})
+        return Response(serializer.data)
+
+    def patch(self, request):
+        profile = request.user.profile
+        serializer = UserProfileSerializer(
+            profile, data=request.data, partial=True, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
 
 
-    def get_object(self):
-        profile, _ = UserProfile.objects.get_or_create(user=self.request.user)
-        return profile
 
-    def get_serializer_context(self):
-        return {"request": self.request}
 
 
 class CustomTokenObtainPairView(TokenObtainPairView): 

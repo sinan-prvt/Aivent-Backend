@@ -3,6 +3,8 @@ from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.contrib.auth.base_user import BaseUserManager
 from django.conf import settings    
 import uuid
+import pyotp
+
 
 class UserManager(BaseUserManager):
     use_in_migrations = True
@@ -44,6 +46,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True) 
     is_staff = models.BooleanField(default=False) 
     
+    totp_secret = models.CharField(max_length=64, blank=True, null=True)   # store base32 secret
+    totp_enabled = models.BooleanField(default=False)  
+
     USERNAME_FIELD = "email" 
     REQUIRED_FIELDS = ["username"] 
     

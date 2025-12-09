@@ -57,6 +57,7 @@ class MeView(APIView):
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
+
 class CustomLoginView(TokenObtainPairView):
     permission_classes = [AllowAny]
     serializer_class = CustomLoginSerializer
@@ -71,9 +72,9 @@ class CustomLoginView(TokenObtainPairView):
         ip = request.META.get("REMOTE_ADDR")
         key = f"{email}:{ip}" if email else ip
 
-        # If captcha is required, validate recaptcha token first
         if requires_captcha(key):
             token = request.data.get("recaptcha_token")
+
             if not token:
                 return Response({
                     "success": False,
@@ -95,40 +96,62 @@ class CustomLoginView(TokenObtainPairView):
         try:
             serializer.is_valid(raise_exception=True)
         except serializers.ValidationError as e:
-            # increment failed attempts so captcha is triggered next time
             try:
                 increment_failed_attempts(key)
             except Exception:
                 pass
             return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
 
-        # At this point serializer validated and put validated user on serializer if using CustomLoginSerializer
+        
         user = getattr(serializer, "_validated_user", None)
         reset_failed_attempts(key)
 
-        # async sync user to user-service (non-blocking)
-        if user:
-            try:
-                sync_user_to_user_service_task.delay({
-                    "id": str(user.id),
-                    "email": user.email,
-                    "username": user.username,
-                    "full_name": user.full_name,
-                    "phone": user.phone,
-                    "role": user.role,
-                    "email_verified": user.email_verified,
-                    "vendor_approved": user.vendor_approved,
-                    "is_active": user.is_active,
-                })
-            except Exception:
-                logger.exception("Failed to dispatch sync task")
+        if not user:
+            return Response({"detail":"Invalid Credentials"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if getattr(user, "role", "") == "vendor" and not getattr(user, "vendor_approved", False):
+            return Response({"detail":"Vendor approval pending"}, status=status.HTTP_403_FORBIDDEN)
+        
+        if getattr(user, "role", "") == "vendor":
+            if not user.totp_secret:
+                secret = pyotp.random_base32()
+                user.totp_secret = secret
+                user.totp_enabled = False
+                user.save(update_fields=["totp_secret", "totp-enabled"])
+                
+                issuer = getattr(settings, "TOTP_ISSUER", "AIVENT")
+                otpauth_url = pyotp.TOTP(secret).provisioning_uri(name=user.email, issuer_name=issuer)
 
+                return Response({
+                    "mfa_required": True,
+                    "mfa_setup": True,
+                    "otpauth_url": otpauth_url,
+                    "message": "Scan the QR with an authenticator app and then POST code to /auth/verify-mfa/"
+                }, status=status.HTTP_200_OK)
+            
+            if not user.totp_enabled:
+                issuer = getattr(settings, "TOTP_ISSUER", "AIVENT")
+                otpauth_url = pyotp.TOTP(user.totp_secret).provisioning_uri(name=user.email, issuer_name=issuer)
+                return Response({
+                    "mfa_required": True,
+                    "mfa_setup": True,
+                    "otpauth_url": otpauth_url,
+                    "message": "Complete setup by verifying the TOTP code at /auth/verify-mfa/"
+                }, status=status.HTTP_200_OK)
+            
+            return Response({
+                "mfa_required": True,
+                "mfa_setup": False,
+                "message": "Provide TOTP to /auth/verify-mfa/ to complete login"
+            }, status=status.HTTP_200_OK)
+        
         tokens_resp = super().post(request, *args, **kwargs)
         return Response({
             "success": True,
             "message": "Logged in",
             "data": tokens_resp.data
         }, status=tokens_resp.status_code)
+    
 
 
 
@@ -139,20 +162,29 @@ class RegisterView(APIView):
         operation_description="Register a new user with email + password + OTP verification",
         tags=["Authentication"]
     )
-
     def post(self, request, *args, **kwargs):
-        serializer = RegisterSerializer(data=request.data)
+        serializer = RegisterSerializer(
+            data=request.data,
+            context={"request": request}
+        )
         serializer.is_valid(raise_exception=True)
-        serializer.save()
-        response = Response(serializer.data, status=status.HTTP_201_CREATED)
 
-        if response.status_code == 201:
-            email = request.data.get("email")
-            user = User.objects.filter(email=email).first()
+        user = serializer.save()
 
+        raw_otp, otp_obj = create_otp_for_user(user, "email_verify")
 
-        return response
-    
+        send_email_task.delay(
+            subject="AIVENT Email Verification OTP",
+            message=f"Your OTP is: {raw_otp}",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+        )
+
+        return Response(
+            {"detail": "User registered. OTP sent for email verification."},
+            status=status.HTTP_201_CREATED
+        )
+
 
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
