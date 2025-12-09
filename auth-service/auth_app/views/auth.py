@@ -25,7 +25,6 @@ from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 from django.conf import settings
 import logging
-from auth_app.tasks import sync_user_to_user_service_task
 
 User = get_user_model()
 
@@ -151,25 +150,6 @@ class RegisterView(APIView):
             email = request.data.get("email")
             user = User.objects.filter(email=email).first()
 
-            if user: 
-                sync_user_to_user_service_task.delay({ 
-                    "id": str(user.id), 
-                    "email": user.email, 
-                    "username": user.username, 
-                    "full_name": user.full_name, 
-                    "phone": user.phone, 
-                    "role": user.role, 
-                    "email_verified": user.email_verified, 
-                    "vendor_approved": user.vendor_approved, 
-                    "is_active": user.is_active, 
-                })
-
-                raw_otp, otp_obj = create_otp_for_user(user, "email_verify")
-                send_email_task.delay(
-                    subject="AIVENT OTP Verification",
-                    message=f"Your OTP is: {raw_otp}",
-                    recipient_list=[email],
-                )
 
         return response
     
