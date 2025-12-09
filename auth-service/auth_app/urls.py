@@ -16,7 +16,9 @@ from .views.otp import (
 )
 from .views.password import ResetPasswordView
 from .views.social import GoogleLoginView, MicrosoftAuthView
+from user_app.views import UserProfileView
 from .views.health import health_check
+
 
 urlpatterns = [
     path("me/", MeView.as_view(), name="me"),
@@ -40,6 +42,8 @@ urlpatterns = [
 
     path("social/google/", GoogleLoginView.as_view(), name="google-login"),
     path("social/microsoft/", MicrosoftAuthView.as_view()),
+
+    path("profile/", UserProfileView.as_view(), name="user-profile"),
 
     path("health/", health_check),
 ]
