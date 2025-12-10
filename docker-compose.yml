@@ -119,6 +119,8 @@ services:
       context: ./vendor-service
     depends_on:
       - vendor_db
+    volumes:
+      - ./auth-service/keys/public.pem:/app/keys/public.pem:ro
     env_file:
       - ./vendor-service/.env
     ports:

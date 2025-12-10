@@ -13,6 +13,9 @@ DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() in ("1","true","yes")
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "*").split(",")
 
 
+JWT_PUBLIC_KEY_PATH = os.getenv("JWT_PUBLIC_KEY_PATH")
+JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "RS256")
+
 
 INSTALLED_APPS = [
     'django.contrib.admin',

@@ -13,4 +13,4 @@ COPY . .
 COPY ./wait-for-db.sh /wait-for-db.sh
 RUN chmod +x /wait-for-db.sh
 
-CMD ["sh", "-c", "/wait-for-db.sh ${POSTGRES_HOST:-vendor_db} ${POSTGRES_PORT:-5432} && python manage.py migrate --noinput && gunicorn vendor_project.wsgi:application -b 0.0.0.0:8000 --workers 3"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "vendor_project.wsgi:application"]
