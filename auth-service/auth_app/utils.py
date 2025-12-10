@@ -33,10 +33,14 @@ def create_otp_for_user(user, purpose, expiry=600):
     return otp, otp_obj
 
 
-def verify_otp_entry(otp_obj, otp):
-    candidate_hash = make_otp_hash(otp, otp_obj.salt)
-    return candidate_hash == otp_obj.otp_hash
+def verify_otp_entry(otp_obj, otp_value):
+    candidate_hash = make_otp_hash(otp_value, otp_obj.salt)
+    if candidate_hash != otp_obj.otp_hash:
+        return False
 
+    otp_obj.used = True
+    otp_obj.save()
+    return True
 
 
 def qrcode_base64_from_uri(uri):

@@ -5,6 +5,8 @@ from auth_app.core.captcha_utils import increment_failed_attempts, reset_failed_
 from django.conf import settings 
 from django.contrib.auth import get_user_model, authenticate
 from auth_app.utils import create_otp_for_user
+from rest_framework import serializers
+from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
@@ -165,3 +167,42 @@ class VendorRegisterSerializer(serializers.Serializer):
         raw_otp, otp_obj = create_otp_for_user(user, purpose="vendor_register")
 
         return user, raw_otp
+    
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    """Serializer used for listing user info in admin UI."""
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "email",
+            "username",
+            "full_name",
+            "phone",
+            "role",
+            "email_verified",
+            "vendor_approved",
+            "is_active",
+            "is_staff",
+            "totp_enabled",
+            "date_joined",
+        ]
+        read_only_fields = ["id", "date_joined", "is_staff"]
+
+
+class AdminUserUpdateSerializer(serializers.ModelSerializer):
+    """Used for partial updates from admin panel (promote/demote, approve vendor)."""
+    class Meta:
+        model = User
+        fields = [
+            "email",
+            "username",
+            "full_name",
+            "phone",
+            "role",
+            "email_verified",
+            "vendor_approved",
+            "is_active",
+            "totp_enabled",
+        ]
+        read_only_fields = ["email"]

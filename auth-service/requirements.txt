@@ -14,3 +14,4 @@ django-redis
 pika
 django-celery-results  
 django-cors-headers
+pyotp

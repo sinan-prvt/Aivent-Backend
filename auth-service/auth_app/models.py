@@ -4,6 +4,7 @@ from django.contrib.auth.base_user import BaseUserManager
 from django.conf import settings    
 import uuid
 import pyotp
+from django.utils import timezone
 
 
 class UserManager(BaseUserManager):
@@ -39,7 +40,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     remote_id = models.CharField(max_length=64, blank=True, null=True, unique=True) 
     
     role = models.CharField( max_length=20, default="customer", choices=[ ("customer", "Customer"), ("vendor", "Vendor"), ("admin", "Admin") ] ) 
-    
+    date_joined = models.DateTimeField(default=timezone.now, editable=False)
+
     email_verified = models.BooleanField(default=False) 
     vendor_approved = models.BooleanField(default=False) 
     

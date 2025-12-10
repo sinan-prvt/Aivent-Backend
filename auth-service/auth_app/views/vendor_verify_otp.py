@@ -2,8 +2,12 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth import get_user_model
-from auth_app.utils import verify_otp
+from django.utils import timezone
+from auth_app.models import OTP
 from auth_app.tasks import publish_event_task
+from auth_app.utils import make_otp_hash
+from auth_app.utils import verify_otp_entry
+
 
 User = get_user_model()
 
@@ -20,13 +24,27 @@ class VendorVerifyOTPView(APIView):
         except User.DoesNotExist:
             return Response({"detail": "user not found"}, status=404)
 
-        if not verify_otp(user, otp, purpose="vendor_register"):
-            return Response({"detail": "Invalid OTP"}, status=400)
+        # Get latest vendor_register OTP
+        otp_obj = (
+            OTP.objects.filter(
+                user=user,
+                purpose="vendor_register",
+                used=False,
+                expires_at__gt=timezone.now()
+            )
+            .order_by("-created_at")
+            .first()
+        )
 
-        user.email_verified = True
-        user.save()
+        if not otp_obj:
+            return Response({"detail": "OTP expired or not found"}, status=400)
 
-        # publish event for vendor-service
+        # Check hash
+        if not verify_otp_entry(otp_obj, otp):
+            return Response({"detail": "Invalid OTP"}, status=400)  
+
+
+        # Publish event for vendor-service
         publish_event_task.delay(
             "vendor.created",
             {
